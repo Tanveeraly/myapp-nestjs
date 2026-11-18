@@ -4,11 +4,18 @@ import { UsersService } from './users.service.js';
 
 describe('UsersController', () => {
   let controller: UsersController;
+  const usersService = {
+    findAll: vi.fn(),
+    findOne: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
+  };
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
-      providers: [UsersService],
+      providers: [{ provide: UsersService, useValue: usersService }],
     }).compile();
 
     controller = module.get<UsersController>(UsersController);

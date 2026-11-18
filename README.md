@@ -11,6 +11,7 @@ My learning project for NestJS, coming from Node.js + Express.
 
 ```bash
 npm install
+# Configure MONGODB_URI and JWT_SECRET in .env before starting
 npm run start:dev      # http://localhost:3000
 npm run test           # unit tests
 npm run build          # compile to dist/
@@ -144,28 +145,23 @@ npm run build          # compile to dist/
 
 **Goal:** Replace in-memory data with a real database.
 
-**Pick one path**
-
-| Option | Best for |
-|---|---|
-| **Prisma** + PostgreSQL | Great DX, type-safe queries, simple setup |
-| **TypeORM** + PostgreSQL | Decorator-based entities, closest to "classic" Nest docs |
-| **Mongoose** + MongoDB | If you already know MongoDB |
+**This project uses Mongoose + MongoDB.** The app reads its connection string from `MONGODB_URI`; `.env.example` lists the required environment variables.
 
 **Do**
-1. Install your chosen ORM and set up the database connection via `.env`
-2. Convert the `User` entity (or Prisma model) with real columns
-3. Create a database service/module (e.g. `PrismaService`) and inject it
-4. Rewrite `UsersService` CRUD to use the database
-5. Add a relation: a User has many Posts
-6. Run migrations
+1. Start a local MongoDB server, or create a MongoDB Atlas cluster
+2. If you do not already have `.env`, copy `.env.example`; otherwise preserve it and add/update `MONGODB_URI`
+3. Read `src/app.module.ts`: `MongooseModule` connects once using the configured URI
+4. Read `src/users/schemas/user.schema.ts`: `@Schema` and `@Prop` define the stored fields and unique email
+5. Read `src/users/users.module.ts`: `forFeature` registers the model for dependency injection
+6. Read `src/users/users.service.ts`: the injected model now implements persistent CRUD
+7. Test `GET`, `PATCH`, and `DELETE /users`; use the returned MongoDB `_id` for item routes. Account creation is handled by `/auth/register` (Day 5).
 
 **Checkpoint**
 - [ ] Data survives a server restart
 - [ ] Unique email is enforced
-- [ ] I can fetch a user with their posts
+- [ ] Invalid MongoDB IDs return 400 and missing users return 404
 
-**Read:** Docs → Database (TypeORM / Mongoose) or Prisma's NestJS guide
+**Read:** NestJS docs → Techniques → Mongo, and Mongoose's schema/model guides
 
 ---
 
@@ -176,25 +172,26 @@ npm run build          # compile to dist/
 **Learn**
 - Password hashing
 - JWT access tokens
-- Guards (the Nest replacement for auth middleware)
+- Guards (Nest's request gate, similar to Express auth middleware)
 
 **Do**
-1. Install:
+1. Put a random `JWT_SECRET` of at least 32 characters in `.env` (keep `.env` out of Git).
+   Generate one with:
    ```bash
-   npm i @nestjs/jwt bcrypt
+   node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
    ```
-2. Generate: `nest g module auth`, `nest g controller auth`, `nest g service auth`
-3. `POST /auth/register`: hash the password, save the user
-4. `POST /auth/login`: verify the password, return a JWT
-5. Write an `AuthGuard` that verifies the token from the `Authorization: Bearer <token>` header
-6. Protect routes with `@UseGuards(AuthGuard)`
-7. Never return the password field in responses
-8. (Bonus) Create a custom `@Public()` decorator and a global guard
+2. `POST /auth/register` accepts `{ "name", "email", "password" }`; the password is bcrypt-hashed before MongoDB stores it.
+3. `POST /auth/login` checks the hash and returns an `access_token`.
+4. Send that token on protected requests as `Authorization: Bearer <access_token>`.
+5. `JwtStrategy` validates the signature and expiry; the global `JwtAuthGuard` rejects requests without a valid token.
+6. `@Public()` is the Nest equivalent of an auth middleware bypass; it is used only on registration, login, and the root route.
+7. All `/users` routes require a token. Account creation is through `/auth/register`; `POST /users` was removed.
+8. The password hash is excluded from normal user queries and API responses.
 
 **Checkpoint**
 - [ ] Protected route returns 401 without a token
 - [ ] Protected route works with a valid token
-- [ ] Passwords are hashed in the database
+- [ ] MongoDB stores a hash, never the submitted password
 
 **Read:** Docs → Authentication, Guards, Custom decorators
 
